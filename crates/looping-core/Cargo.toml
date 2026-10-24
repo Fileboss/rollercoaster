@@ -1,0 +1,16 @@
+[package]
+name = "looping-core"
+description = "Conceptual model, MLD derivation, SQL generation and rendering for Looping documents"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+loo-format.workspace = true
+serde.workspace = true
+ttf-parser = "0.25"
+resvg = { version = "0.45", optional = true }
+
+[features]
+# `Scene::to_png` (bitmap export of the diagram)
+png = ["dep:resvg"]
