@@ -75,6 +75,31 @@ tools/wine/make-refs.sh      # ≈ 25 min pour tout ; résultats dans samples/re
 - **Piège :** ne pas modifier un script `.sh` pendant qu'il tourne, car
   `sh` le relit au fil de l'exécution.
 
+### Wine sur macOS (Apple Silicon)
+
+Les casks Homebrew `wine-stable` et `wine@staging` sont désactivés depuis
+le 1er septembre 2026 (Gatekeeper). On utilise le build de Gcenx, qui
+fabriquait ces casks, avec Rosetta 2 (déjà installé sur ce Mac) :
+
+```sh
+v=11.18   # https://github.com/Gcenx/macOS_Wine_builds/releases (vérifier le SHA-256)
+mkdir -p ~/.local/opt/wine-staging-$v ~/.local/bin
+tar -xJf wine-staging-$v-osx64.tar.xz -C ~/.local/opt/wine-staging-$v
+xattr -dr com.apple.quarantine ~/.local/opt/wine-staging-$v
+for b in wine wineboot wineserver winepath winecfg; do
+  ln -sf ~/.local/opt/wine-staging-$v/"Wine Staging.app"/Contents/Resources/wine/bin/$b ~/.local/bin/$b
+done
+export PATH="$HOME/.local/bin:$PATH"   # dans ~/.zshrc
+```
+
+- **Piège :** sur macOS, les services du préfixe (`services.exe`,
+  `winedevice.exe`…) ne se terminent jamais. `wineserver -w` attend sans
+  fin, et un appelant qui lit la sortie (`| tail`, outil de Claude Code)
+  aussi. `extract.sh` arrête donc le préfixe à sa sortie
+  (`wineserver -k`) sous Darwin.
+- Les sorties sont identiques à l'octet à celles produites sous Fedora
+  (vérifié sur `tp3 - Guide gastronomique`).
+
 État : 299 documents (10 exemples, 23 cas synthétiques, variantes),
 MLD et SQL **identiques** à Looping.
 
@@ -153,7 +178,11 @@ Jalon 3 terminé (voir ROADMAP) :
 - **REA et Ghidra :** REA est configuré pour Claude Code (serveur MCP `rea`,
   skill `reverse-engineer-anything`) avec Ghidra 12.1.4 et le JDK 25 dans
   `~/.local/opt/`. REA 6.7.0 refuse Ghidra 12.2, également installé à côté
-  pour un usage direct (`analyzeHeadless` de `tools/re/`).
+  pour un usage direct (`analyzeHeadless` de `tools/re/`). La release de
+  Ghidra n'a pas de décompilateur natif macOS arm64 : le compiler avec
+  `support/gradle/gradlew buildNatives` (JDK 25) ; `JAVA_HOME_OVERRIDE`
+  de `support/launch.properties` pointe sur ce JDK, et le serveur MCP `rea`
+  (`~/.claude.json`) reçoit `GHIDRA_INSTALL_DIR` et `JAVA_HOME`.
 
 ## Rétro-ingénierie : outils et méthode
 
@@ -314,8 +343,26 @@ Avancement du jalon 5 :
 Périmètre et ordre de travail : `docs/ROADMAP.md`, section « Version
 0.1.0 » ; tout le reste y est listé comme reporté. Avancement : points 1 à
 9 faits (export PNG : `Scene::to_png`, option `png` de `looping-core`) ;
-suivent la campagne de vérification (point 10) puis la release (CI et
-`.dmg`, point 11).
+point 10 fait sauf la vérification à la main, point 11 écrit (CI,
+`tools/macos/bundle.sh`) en attente du premier passage sur GitHub et du tag.
+
+Campagne de vérification (point 10), sur le Mac avec Wine :
+
+```sh
+cargo test --release -p looping-core --test campaign            # aucune panique (CAMPAIGN_SEEDS=3000)
+cargo run -p looping-core --example random_cases -- samples/cases 150 25   # modèles réalistes r*.loo
+tools/wine/extract.sh samples/ref samples/cases/r*.loo          # sorties du vrai Looping
+cargo test --release -p looping-core --test reference           # comparaison
+cargo run -p looping-core --example shrink -- DOC.loo DIR       # réduire un écart (une copie par objet supprimé)
+```
+
+Règles établies ainsi (cas c51 à c95, détail dans `mld.rs`) : clés migrées
+dans l'ordre de création des liens, MLD calculé par passes jusqu'à point
+fixe ; héritage multiple et « migration de toutes les rubriques »
+(`0x1400cf0b0`) ; notes de validation (héritage, contraintes `0x1400bfe60`,
+associations à moins de 2 pattes) ; `***CLE_ABSENTE***` migrée seulement à
+côté d'une autre clé étrangère, `***CLE_INCOMPLETE***` ; noms de
+contraintes (rang, rôle) ; ordre des `UNIQUE` ; GEOGRAPHY = `f20` 6.
 
 ## Choix faits (jalon 5)
 

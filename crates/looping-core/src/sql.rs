@@ -12,7 +12,7 @@
 use loo_format::Settings;
 use serde::Serialize;
 
-use crate::mld::{ForeignKey, Mld, Table, LOGICAL, MISSING_KEY, RANK_SEP};
+use crate::mld::{is_placeholder, ForeignKey, Mld, Table, LOGICAL, RANK_SEP};
 use crate::naming::{avoid_reserved, convert, Convention};
 use crate::types::Dbms;
 
@@ -122,27 +122,25 @@ impl SqlOptions {
 
     /// `CONSTRAINT FK_table_referenced ` (or `table_referenced_FK`), made
     /// unique over the script with `_1`, `_2`… like column names.
-    fn constraint(&self, kind: &str, parts: &[&str], used: &mut Vec<String>) -> String {
-        self.constraint_name(kind, parts, used).map(|n| format!("CONSTRAINT {n} ")).unwrap_or_default()
+    fn constraint(&self, kind: &str, parts: &[&str], rank: Option<String>) -> String {
+        self.constraint_name(kind, parts, rank).map(|n| format!("CONSTRAINT {n} ")).unwrap_or_default()
     }
 
-    fn constraint_name(&self, kind: &str, parts: &[&str], used: &mut Vec<String>) -> Option<String> {
+    /// `PK_table` / `AK_table[_rank]` / `FK_table_parent[_rank]` (or with
+    /// the kind as suffix); the rank goes on the base: FK_t_r_1 / t_r_1_FK.
+    /// Looping never ranks PK names, even of homonymous tables (case c76).
+    fn constraint_name(&self, kind: &str, parts: &[&str], rank: Option<String>) -> Option<String> {
         if self.constraint_names == ConstraintNames::None {
             return None;
         }
-        let base = parts.iter().map(|p| self.name(p)).collect::<Vec<_>>().join("_");
-        let full = |b: &str| match self.constraint_names {
-            ConstraintNames::Suffix => format!("{b}_{kind}"),
-            _ => format!("{kind}_{b}"),
-        };
-        // the rank goes on the base: FK_t_r_1 / t_r_1_FK
-        let name = std::iter::once(base.clone())
-            .chain((1..).map(|i| format!("{base}_{i}")))
-            .map(|b| full(&b))
-            .find(|n| !used.contains(n))
-            .unwrap();
-        used.push(name.clone());
-        Some(name)
+        let mut base = parts.iter().map(|p| self.name(p)).collect::<Vec<_>>().join("_");
+        if let Some(r) = rank {
+            base = format!("{base}_{r}");
+        }
+        Some(match self.constraint_names {
+            ConstraintNames::Suffix => format!("{base}_{kind}"),
+            _ => format!("{kind}_{base}"),
+        })
     }
 
     /// Referential actions of `fk`, generated when `+0x888` is set
@@ -173,10 +171,11 @@ pub fn ident(name: &str) -> String {
 }
 
 fn physical(name: &str, convention: Convention, remove_accents: bool) -> String {
-    if name == MISSING_KEY {
+    if is_placeholder(name) {
         return name.to_string();
     }
-    match name.split_once(RANK_SEP) {
+    // the last rank: a column of a migrated key may already have one
+    match name.rsplit_once(RANK_SEP) {
         Some((base, rank)) => format!("{}_{rank}", physical(base, convention, remove_accents)),
         None if name.contains(LOGICAL) => crate::mld::shown(name),
         None => avoid_reserved(convert(name, convention, remove_accents)),
@@ -196,17 +195,39 @@ struct Clauses {
     fks: Vec<String>,
 }
 
-fn clauses(t: &Table, o: &SqlOptions, used: &mut Vec<String>) -> Clauses {
+/// The n-th UNIQUE of a table is ranked n (case c77).
+fn unique_rank(n: usize) -> Option<String> {
+    (n > 0).then(|| n.to_string())
+}
+
+/// A foreign key takes the rank of its columns: `Id_Client_1` gives
+/// `FK_Commande_Client_1`, a reflexive `Id_Employe_1` `FK_Employe_Employe_1`
+/// (cases c74, c75).
+fn foreign_key_rank(fk: &ForeignKey) -> Option<String> {
+    // the first ranked column: (Prix6, Âge_1) gives _1 (r095)
+    fk.columns.iter().find_map(|c| c.rsplit_once(RANK_SEP)).map(|(_, r)| r.to_string())
+}
+
+/// The end of a foreign key's constraint name: the role as typed, when the
+/// key's names use it (c94, c95, r138), then the rank.
+fn fk_suffix(fk: &ForeignKey) -> Option<String> {
+    let parts: Vec<String> =
+        [Some(fk.role.clone()).filter(|r| !r.is_empty()), foreign_key_rank(fk)].into_iter().flatten().collect();
+    (!parts.is_empty()).then(|| parts.join("_"))
+}
+
+fn clauses(t: &Table, o: &SqlOptions) -> Clauses {
     let pk: Vec<String> = t.primary_key().iter().map(|c| o.name(&c.name)).collect();
     let pk =
-        (!pk.is_empty()).then(|| format!("{}PRIMARY KEY({})", o.constraint("PK", &[&t.name], used), pk.join(", ")));
+        (!pk.is_empty()).then(|| format!("{}PRIMARY KEY({})", o.constraint("PK", &[&t.name], None), pk.join(", ")));
     let unique = t
         .unique
         .iter()
-        .map(|u| {
+        .enumerate()
+        .map(|(i, u)| {
             format!(
                 "{}UNIQUE({})",
-                o.constraint("AK", &[&t.name], used),
+                o.constraint("AK", &[&t.name], unique_rank(i)),
                 u.iter().map(|c| o.name(c)).collect::<Vec<_>>().join(", ")
             )
         })
@@ -217,7 +238,7 @@ fn clauses(t: &Table, o: &SqlOptions, used: &mut Vec<String>) -> Clauses {
         .map(|fk| {
             format!(
                 "{}FOREIGN KEY({}) REFERENCES {}({}){}",
-                o.constraint("FK", &[&t.name, &fk.table], used),
+                o.constraint("FK", &[&t.name, &fk.table], fk_suffix(fk)),
                 fk.columns.iter().map(|c| o.name(c)).collect::<Vec<_>>().join(", "),
                 o.name(&fk.table),
                 fk.referenced.iter().map(|c| o.name(c)).collect::<Vec<_>>().join(", "),
@@ -263,7 +284,6 @@ fn script(mld: &Mld, o: &SqlOptions, vba: bool) -> String {
             out.push_str(&format!("{}\n", table_end.replace("[Nom_Table]", c)));
         }
     }
-    let mut used = Vec::new();
     // one ALTER TABLE per table, its clauses separated by commas
     let mut alters: Vec<(String, Vec<String>)> = Vec::new();
     let mut tables = Vec::new();
@@ -298,7 +318,7 @@ fn script(mld: &Mld, o: &SqlOptions, vba: bool) -> String {
             };
             lines.push((l, comment));
         }
-        let cl = clauses(t, o, &mut used);
+        let cl = clauses(t, o);
         let (inline, deferred): (Vec<String>, Vec<String>) = match o.placement {
             Placement::CreateTable => (cl.pk.into_iter().chain(cl.unique).chain(cl.fks).collect(), Vec::new()),
             Placement::ForeignKeysInAlter => (cl.pk.into_iter().chain(cl.unique).collect(), cl.fks),
@@ -445,6 +465,8 @@ mod tests {
                     foreign_keys: vec![],
                     unique: vec![],
                     circular: false,
+                    too_few_legs: false,
+                    attribute_unique: vec![],
                     comment: vec![],
                 },
                 Table {
@@ -454,11 +476,15 @@ mod tests {
                     foreign_keys: vec![ForeignKey {
                         columns: vec!["Id Race".into()],
                         table: "Race".into(),
+                        parent: 1,
+                        role: String::new(),
                         referenced: vec!["Id Race".into()],
                         actions: crate::mcd::Actions { on_delete_cascade: true, ..Default::default() },
                     }],
                     unique: vec![],
                     circular: false,
+                    too_few_legs: false,
+                    attribute_unique: vec![],
                     comment: vec![],
                 },
             ],
@@ -509,7 +535,6 @@ pub fn xml(mld: &Mld, o: &SqlOptions, database: &str) -> Result<String, &'static
     }
     let mut out =
         format!("<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n\n<Database>\n   <Name>{database}</Name>\n");
-    let mut used = Vec::new();
     let names = |cols: &[String]| cols.iter().map(|c| o.name(c)).collect::<Vec<_>>().join(", ");
     for t in mld.creation_order() {
         out.push_str(&format!("   <Table>\n      <Name>{}</Name>\n", o.name(&t.name)));
@@ -551,15 +576,15 @@ pub fn xml(mld: &Mld, o: &SqlOptions, database: &str) -> Result<String, &'static
         };
         let pk: Vec<String> = t.primary_key().iter().map(|c| c.name.clone()).collect();
         if !pk.is_empty() {
-            let n = o.constraint_name("PK", &[&t.name], &mut used);
+            let n = o.constraint_name("PK", &[&t.name], None);
             block("PK", n, format!("         <Key>{}</Key>\n", names(&pk)));
         }
-        for u in &t.unique {
-            let n = o.constraint_name("AK", &[&t.name], &mut used);
+        for (i, u) in t.unique.iter().enumerate() {
+            let n = o.constraint_name("AK", &[&t.name], unique_rank(i));
             block("AK", n, format!("         <Key>{}</Key>\n", names(u)));
         }
         for fk in &t.foreign_keys {
-            let n = o.constraint_name("FK", &[&t.name, &fk.table], &mut used);
+            let n = o.constraint_name("FK", &[&t.name, &fk.table], fk_suffix(fk));
             let mut body = format!(
                 "         <Key>{}</Key>\n         <Reference>{}({})</Reference>\n",
                 names(&fk.columns),

@@ -110,7 +110,8 @@ pub enum DataType {
     Xml,
     Geometry,
     Geography,
-    /// Free-form type text (category 4).
+    /// Free-form type text (category 4, `CUnParametre+0x40`) as typed: the
+    /// type, then optionally `#` and a description, see [`DataType::free`].
     Free(String),
     Unknown,
 }
@@ -171,19 +172,28 @@ impl DataType {
             3 => DataType::Boolean,
             // `CUnParametre+0x40` (0x1400a7f70): the text before a `#`, the
             // rest being a description
-            4 => DataType::Free(match p.s40.find('#') {
-                Some(i) => p.s40[..i].trim_end().to_string(),
-                None => p.s40.clone(),
-            }),
+            4 => DataType::Free(p.s40.clone()),
             5 => DataType::Xml,
-            6 => DataType::Geometry,
-            7 => DataType::Geography,
+            // radio buttons 14 « Géographique » / 13 « Géométrique » of the
+            // « Rubrique » dialog (0x1400386c0)
+            6 => DataType::Geography,
+            7 => DataType::Geometry,
             _ => DataType::Unknown,
         }
     }
 
     /// SQL type for `dbms`. `as_foreign_key` turns counters into plain
     /// integers, as Looping does for migrated keys.
+    /// A free type (0x1400a7f70): the text before `#`; a foreign key
+    /// column gets the description after it instead (r018).
+    fn free(s: &str, as_foreign_key: bool) -> String {
+        match s.split_once('#') {
+            Some((_, description)) if as_foreign_key => description.trim().to_string(),
+            Some((name, _)) => name.trim_end().to_string(),
+            None => s.to_string(),
+        }
+    }
+
     pub fn sql(&self, dbms: Dbms, as_foreign_key: bool) -> String {
         let c = dbms.col();
         // Columns: Access, MySQL, Oracle, PostgreSQL, SQL Server, Sybase, DB2, MariaDB, SQLite
@@ -426,7 +436,7 @@ impl DataType {
                 "GEOMETRY",
                 "TEXT",
             ]),
-            DataType::Free(s) => s.clone(),
+            DataType::Free(s) => DataType::free(s, as_foreign_key),
             DataType::Unknown => String::new(),
         }
     }
@@ -448,7 +458,7 @@ impl DataType {
             DataType::Xml => "XML".into(),
             DataType::Geometry => "Géométrique".into(),
             DataType::Geography => "Géographique".into(),
-            DataType::Free(s) => s.clone(),
+            DataType::Free(s) => DataType::free(s, false),
             DataType::Unknown => String::new(),
         }
     }

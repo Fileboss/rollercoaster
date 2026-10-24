@@ -1066,7 +1066,10 @@ pub fn remove_break(doc: &mut Document, seg: ObjId) {
 /// Objects to copy for `ids`: the objects, their texts, and the links whose
 /// two ends are copied (all their segments), in document order.
 pub fn copy(doc: &Document, ids: &[ObjId]) -> Vec<DrawObj> {
-    let mut keep: Vec<ObjId> = ids.iter().copied().filter(|&id| doc.object(id).is_some()).collect();
+    // a selected link is copied below only when both its ends are: alone,
+    // its pasted copy would be a single segment without owner
+    let mut keep: Vec<ObjId> =
+        ids.iter().copied().filter(|&id| doc.object(id).is_some_and(|o| !o.class.starts_with("CDrawArc"))).collect();
     // a free line goes with all its segments
     let lines: Vec<ObjId> = keep
         .iter()

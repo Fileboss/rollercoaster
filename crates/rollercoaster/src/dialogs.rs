@@ -1021,8 +1021,8 @@ fn rubrique(ui: &mut egui::Ui, p: &mut Parametre, entity: bool) {
             (2, "Date / Heure"),
             (3, "Booléen"),
             (5, "Xml"),
-            (6, "Géométrique"),
-            (7, "Géographique"),
+            (7, "Géométrique"),
+            (6, "Géographique"),
             (4, "Libre"),
         ] {
             ui.radio_value(&mut p.f20, v, label);
