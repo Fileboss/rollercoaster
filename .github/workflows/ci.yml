@@ -13,8 +13,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Linux x64 and macOS ARM, the two targets of Rollercoaster
-        os: [ubuntu-latest, macos-14]
+        # Linux x64 (the Ubuntu of the releases) and macOS ARM, the two
+        # targets of Rollercoaster
+        os: [ubuntu-22.04, macos-14]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -30,5 +31,15 @@ jobs:
       # including the no-panic campaign (tests/campaign.rs)
       - name: Tests
         run: cargo test --workspace
-      - name: Application
-        run: cargo build --release -p rollercoaster
+      # the deliverables of this commit, downloadable from the run's page
+      # (releases: release.yml)
+      - name: Deliverable
+        id: deliverable
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then f=$(tools/macos/bundle.sh | tail -1); else f=$(tools/linux/package.sh | tail -1); fi
+          echo "file=$f" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rollercoaster-${{ runner.os }}
+          path: ${{ steps.deliverable.outputs.file }}
+          retention-days: 14

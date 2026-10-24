@@ -24,7 +24,20 @@ Jusqu'à macOS 14, un **clic droit › Ouvrir** sur l'application suffit. En
 ligne de commande, l'équivalent est
 `xattr -dr com.apple.quarantine /Applications/Rollercoaster.app`.
 
-**Linux x64** : pas encore de paquet ; compiler depuis les sources (ci-dessous).
+**Linux x64** : télécharger `Rollercoaster-<version>-linux-x86_64.tar.gz`,
+le décompresser et lancer `./rollercoaster` (l'éditeur) ou `./looping-cli`.
+Aucune dépendance à installer : X11 ou Wayland et OpenGL sont chargés au
+lancement. Pas encore de paquet (AppImage, Flatpak).
+
+## Publier une version
+
+Monter `version` dans `Cargo.toml` (section `[workspace.package]`), mettre
+à jour `docs/RELEASE-NOTES.md`, puis merger dans `main` : la CI
+(`.github/workflows/release.yml`) teste, construit le `.dmg` macOS ARM et
+le `.tar.gz` Linux x64, crée le tag `v<version>` et la release GitHub avec
+ces deux fichiers. Un merge sans changement de version ne publie rien.
+Chaque push donne aussi ces livrables, téléchargeables depuis la page de
+l'exécution de la CI (14 jours).
 
 ## Utilisation
 
