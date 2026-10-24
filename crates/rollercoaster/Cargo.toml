@@ -1,0 +1,18 @@
+[package]
+name = "rollercoaster"
+description = "Rollercoaster: MCD editor compatible with Looping documents (macOS ARM, Linux x64)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "rollercoaster"
+path = "src/main.rs"
+
+[dependencies]
+loo-format.workspace = true
+looping-core = { workspace = true, features = ["png"] }
+eframe = "0.37"
+rfd = "0.17"
+png = "0.18"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp"] }

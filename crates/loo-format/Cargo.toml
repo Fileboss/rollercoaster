@@ -1,0 +1,10 @@
+[package]
+name = "loo-format"
+description = "Reader/writer for Looping .loo files (MFC CArchive based)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true

@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = ["crates/loo-format", "crates/looping-core", "crates/looping-cli", "crates/rollercoaster"]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+
+[workspace.dependencies]
+loo-format = { path = "crates/loo-format" }
+looping-core = { path = "crates/looping-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
