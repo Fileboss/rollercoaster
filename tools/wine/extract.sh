@@ -20,10 +20,14 @@ if [ ! -x "$WINPY/python.exe" ]; then
     rm -f "$zip"
 fi
 export WINEPREFIX="${WINEPREFIX:-$HOME/.cache/looping-wine}" WINEDEBUG=-all
+# On macOS the prefix services (winedevice.exe…) never exit: they would hang
+# `wineserver -w` and any caller reading our output, so stop them at exit
+# (the registry is saved on shutdown)
+darwin=; [ "$(uname)" != Darwin ] || { darwin=1; trap 'wineserver -k' EXIT; }
 if [ ! -d "$WINEPREFIX" ]; then
     wineboot -i >/dev/null 2>&1
     wine reg add 'HKCU\Software\Wine\Drivers' /v Graphics /d null /f >/dev/null 2>&1
-    wineserver -w
+    [ -n "$darwin" ] || wineserver -w
 fi
 # Calibri (the documents' font) is not free: use Carlito, its metric clone,
 # so that the image exports have the text layout of Windows

@@ -730,6 +730,406 @@ fn cases() -> Vec<(&'static str, Model)> {
     }
     v.push(("c22_external_entity", m));
 
+    // one attribute of each type of the « Rubrique » dialog (`CUnParametre`
+    // +0x20 kind, +0x24 text kind, +0x28 charset, +0x2c sub-kinds, +0x60
+    // time zone), for the 9 DBMS
+    let mut m = Model::new();
+    let e = m.entity("Types");
+    let mut attrs = Vec::new();
+    for charset in 0..3 {
+        for kind in 0..3 {
+            attrs.push((format!("texte_{charset}_{kind}"), 0, [0, 2, 1, 0], kind, charset, 0));
+        }
+    }
+    for size in 0..4 {
+        attrs.push((format!("entier_{size}"), 1, [0, size, 1, 0], 1, 0, 0));
+    }
+    for (name, sub) in [("decimal", [1, 2, 1, 0]), ("reel", [2, 2, 0, 0]), ("double", [2, 2, 1, 0])] {
+        attrs.push((name.into(), 1, sub, 1, 0, 0));
+    }
+    for (name, sub) in [("monetaire", 3), ("compteur", 4)] {
+        attrs.push((name.into(), 1, [sub, 2, 1, 0], 1, 0, 0));
+    }
+    for (name, sub, tz) in [("date", 0, 0), ("heure", 1, 0), ("date_heure", 2, 0), ("date_heure_tz", 2, 1)] {
+        attrs.push((name.into(), 2, [0, 2, 1, sub], 1, 0, tz));
+    }
+    for (name, kind) in [("booleen", 3), ("libre", 4), ("xml", 5), ("geographique", 6), ("geometrique", 7)] {
+        attrs.push((name.into(), kind, [0, 2, 1, 0], 1, 0, 0));
+    }
+    for (name, kind, sub, text_kind, charset, tz) in attrs {
+        let mut p = new_parametre(&name);
+        p.f20 = kind;
+        p.f2c = sub;
+        p.f24 = text_kind;
+        p.f28 = charset;
+        p.f60 = tz;
+        p.f64 = 10;
+        p.f68 = [11, 12, 13, 14, 15];
+        p.f7c = 12;
+        p.f80 = 3;
+        if kind == 4 {
+            p.s40 = "MONEY # type libre".into();
+        }
+        texte_mut(&mut m.doc, e, 1).unwrap().params.push(p);
+    }
+    v.push(("c51_all_types", m));
+
+    // inheritance diagnostics (0x1400d19f0): only a supertype, only
+    // subtypes, no link at all; valid tables besides
+    for (name, sup, subs) in [
+        ("c52_heritage_no_subtype", true, 0),
+        ("c53_heritage_no_supertype", false, 2),
+        ("c54_heritage_empty", false, 0),
+    ] {
+        let mut m = Model::new();
+        let p = m.entity("Personne");
+        let others = [m.subtype("Etudiant", &["Ecole"]), m.subtype("Salarie", &["Salaire"])];
+        let c = m.entity("Ville");
+        m.assoc("Habiter", &[(p, C11), (c, C0N)]);
+        let at = m.at();
+        let h = add_heritage(&mut m.doc, at, 0);
+        if sup {
+            add_heritage_link(&mut m.doc, p, h, true);
+        }
+        for &e in &others[..subs] {
+            add_heritage_link(&mut m.doc, e, h, false);
+        }
+        v.push((name, m));
+    }
+
+    // associations with one leg (with an attribute) and without legs,
+    // between valid ones: where their lines go, and whether SQL is refused
+    let mut m = Model::new();
+    let a = m.entity("Client");
+    let b = m.entity("Commande");
+    m.assoc("Passer", &[(a, C0N), (b, C11)]);
+    let one = m.assoc("Payer", &[(b, C0N)]);
+    m.attr(one, "Montant", false, false, "");
+    m.assoc("Vide", &[]);
+    m.assoc("Suivre", &[(a, C0N), (b, C0N)]);
+    v.push(("c55_association_one_leg", m));
+
+    // diagnostics of every kind, created in the order heritage, CIF,
+    // constraint: the order of the note lines
+    let mut m = Model::new();
+    let es = ["Prof", "Classe", "Matiere"].map(|n| m.entity(n));
+    let at = m.at();
+    let h = add_heritage(&mut m.doc, at, 0);
+    add_heritage_link(&mut m.doc, es[0], h, true);
+    let r = m.assoc("Enseigner", &[(es[0], C0N), (es[1], C0N)]);
+    let at = m.at();
+    let cif = add_cif(&mut m.doc, at);
+    add_cif_link(&mut m.doc, r, cif, false);
+    let at = m.at();
+    let k = add_contrainte(&mut m.doc, "X", at, 0);
+    add_contrainte_link(&mut m.doc, r, k);
+    let at = m.at();
+    let k = add_contrainte(&mut m.doc, "I", at, 4);
+    add_contrainte_link(&mut m.doc, r, k);
+    v.push(("c56_notes_order", m));
+
+    // inheritance combinations met by the random documents
+    // (examples/random_cases.rs): one subtype under two inheritances, with
+    // and without its own identifier
+    for (name, own_key) in [("c57_multi_heritage_own_key", true), ("c58_multi_heritage_no_key", false)] {
+        let mut m = Model::new();
+        let a = m.entity("Agence");
+        let b = m.entity("Date");
+        let g = if own_key { m.entity("Groupe") } else { m.subtype("Groupe", &["Libelle"]) };
+        m.heritage(a, &[g], 0, false);
+        m.heritage(b, &[g], 0, false);
+        v.push((name, m));
+    }
+
+    // « migration de toutes les rubriques » onto a subtype with its own
+    // identifier, and onto one without
+    let mut m = Model::new();
+    let p = m.entity("Personne");
+    m.attr(p, "Nom", false, false, "");
+    let e = m.entity("Etudiant");
+    m.attr(e, "Ecole", false, false, "");
+    let s = m.subtype("Salarie", &["Salaire"]);
+    m.heritage(p, &[e, s], 0, true);
+    v.push(("c59_migration_own_key", m));
+
+    // two levels, migration at both, at the top only, at the bottom only
+    for (name, top, bottom) in [
+        ("c60_migration_chain_both", true, true),
+        ("c61_migration_chain_top", true, false),
+        ("c62_migration_chain_bottom", false, true),
+    ] {
+        let mut m = Model::new();
+        let p = m.entity("Personne");
+        m.attr(p, "Nom", false, false, "");
+        let e = m.subtype("Etudiant", &["Ecole"]);
+        let d = m.subtype("Doctorant", &["These"]);
+        m.heritage(p, &[e], 0, top);
+        m.heritage(e, &[d], 0, bottom);
+        v.push((name, m));
+    }
+
+    // migration with the supertype in an association: its table goes away
+    let mut m = Model::new();
+    let p = m.entity("Personne");
+    let e = m.subtype("Etudiant", &["Ecole"]);
+    let v_ = m.entity("Ville");
+    m.heritage(p, &[e], 0, true);
+    m.assoc("Habiter", &[(p, C11), (v_, C0N)]);
+    let c = m.entity("Cours");
+    m.assoc("Suivre", &[(p, C0N), (c, C0N)]);
+    v.push(("c63_migration_supertype_linked", m));
+
+    // a cycle of inheritances (A over B, B over A)
+    let mut m = Model::new();
+    let a = m.entity("Alpha");
+    let b = m.entity("Beta");
+    m.heritage(a, &[b], 0, false);
+    m.heritage(b, &[a], 0, false);
+    v.push(("c64_heritage_cycle", m));
+
+    // two supertype links on one symbol
+    let mut m = Model::new();
+    let a = m.entity("Alpha");
+    let b = m.entity("Beta");
+    let c = m.subtype("Gamma", &["g"]);
+    let at = m.at();
+    let h = add_heritage(&mut m.doc, at, 0);
+    add_heritage_link(&mut m.doc, a, h, true);
+    add_heritage_link(&mut m.doc, b, h, true);
+    add_heritage_link(&mut m.doc, c, h, false);
+    v.push(("c65_heritage_two_supertypes", m));
+
+    // which links of the supertype cancel the migration (0x1400cf0b0
+    // counts its links of mask 0x2804)
+    for (name, link) in [
+        ("c66_migration_with_assoc_nn", 0),
+        ("c67_migration_with_assoc_11", 1),
+        ("c68_migration_with_rule", 2),
+        ("c69_migration_supertype_is_subtype", 3),
+        ("c70_migration_with_constraint", 4),
+    ] {
+        let mut m = Model::new();
+        let p = m.entity("Personne");
+        m.attr(p, "Nom", false, false, "");
+        let e = m.subtype("Etudiant", &["Ecole"]);
+        m.heritage(p, &[e], 0, true);
+        match link {
+            0 => {
+                let c = m.entity("Cours");
+                m.assoc("Suivre", &[(p, C0N), (c, C0N)]);
+            }
+            1 => {
+                let c = m.entity("Ville");
+                m.assoc("Habiter", &[(p, C11), (c, C0N)]);
+            }
+            2 => {
+                let at = m.at();
+                let r = add_regle(&mut m.doc, "R", at, &["regle"], &[], false, [1, 1, 0]);
+                add_regle_link(&mut m.doc, p, r);
+            }
+            3 => {
+                let q = m.entity("Etre");
+                m.heritage(q, &[p], 0, false);
+            }
+            _ => {
+                let at = m.at();
+                let k = add_contrainte(&mut m.doc, "X", at, 0);
+                add_contrainte_link(&mut m.doc, p, k);
+            }
+        }
+        v.push((name, m));
+    }
+
+    // order of the keys migrated into one entity by x,1 associations: by
+    // association, by link, or by neither (document order of the objects)
+    for (name, links_reversed, assocs_reversed) in [
+        ("c71_fk_order_together", false, false),
+        ("c72_fk_order_links_reversed", true, false),
+        ("c73_fk_order_assocs_reversed", false, true),
+    ] {
+        let mut m = Model::new();
+        let e = m.entity("Commande");
+        let parents = ["Client", "Magasin", "Vendeur"].map(|n| m.entity(n));
+        let mut assocs: Vec<ObjId> = Vec::new();
+        for n in ["Passer", "Situer", "Vendre"] {
+            let at = m.at();
+            assocs.push(add_association(&mut m.doc, n, at));
+        }
+        if assocs_reversed {
+            // same names in the same places, objects created the other way
+            let mut m2 = Model::new();
+            let e2 = m2.entity("Commande");
+            let p2 = ["Client", "Magasin", "Vendeur"].map(|n| m2.entity(n));
+            let mut a2 = Vec::new();
+            for n in ["Vendre", "Situer", "Passer"] {
+                let at = m2.at();
+                a2.push(add_association(&mut m2.doc, n, at));
+            }
+            a2.reverse();
+            for i in 0..3 {
+                add_link(&mut m2.doc, e2, a2[i], C11);
+                add_link(&mut m2.doc, p2[i], a2[i], C0N);
+            }
+            v.push((name, m2));
+            continue;
+        }
+        let order: Vec<usize> = if links_reversed { vec![2, 1, 0] } else { vec![0, 1, 2] };
+        for i in order {
+            add_link(&mut m.doc, e, assocs[i], C11);
+            add_link(&mut m.doc, parents[i], assocs[i], C0N);
+        }
+        v.push((name, m));
+    }
+
+    // constraint names (+0x7f4 = 1, PK_ / FK_ / AK_): a reflexive key, two
+    // keys to one table, two tables of one name
+    let mut m = Model::new();
+    let e = m.entity("Employe");
+    m.attr(e, "Matricule", false, true, "");
+    m.assoc("Diriger", &[(e, C0N), (e, C11)]);
+    m.doc.settings.set_i32(0x7f4, 1);
+    v.push(("c74_names_reflexive", m));
+
+    let mut m = Model::new();
+    let c = m.entity("Client");
+    let o = m.entity("Commande");
+    m.assoc("Passer", &[(o, C11), (c, C0N)]);
+    m.assoc("Payer", &[(o, C01), (c, C0N)]);
+    m.doc.settings.set_i32(0x7f4, 1);
+    v.push(("c75_names_two_keys", m));
+
+    let mut m = Model::new();
+    let a = m.entity("Client");
+    m.attr(a, "Nom", false, true, "");
+    let b = m.entity("Client");
+    m.attr(b, "Code", false, true, "");
+    let o = m.entity("Commande");
+    m.assoc("Passer", &[(o, C11), (a, C0N)]);
+    m.assoc("Livrer", &[(o, C11), (b, C0N)]);
+    m.doc.settings.set_i32(0x7f4, 1);
+    v.push(("c76_names_same_table", m));
+
+    // two UNIQUE attributes and a 1-1 key in one table
+    let mut m = Model::new();
+    let a = m.entity("Client");
+    m.attr(a, "Nom", false, true, "");
+    m.attr(a, "Email", false, true, "");
+    let b = m.entity("Carte");
+    m.assoc("Detenir", &[(a, C01), (b, C11)]);
+    m.doc.settings.set_i32(0x7f4, 1);
+    v.push(("c77_names_two_unique", m));
+
+    // constraint names of keys with a role: as suffix, as name
+    for (name, rename) in [("c94_names_role_suffix", false), ("c95_names_role_rename", true)] {
+        let mut m = Model::new();
+        let e = m.entity("Employe");
+        let s = m.entity("Service");
+        let (_, arcs) = m.assoc_arcs("Diriger", &[(e, C0N), (e, C11)]);
+        m.role_with(arcs[0], "chef", true, rename);
+        let (_, arcs) = m.assoc_arcs("Affecter", &[(e, C11), (s, C0N)]);
+        m.role_with(arcs[1], "service", true, rename);
+        m.doc.settings.set_i32(0x7f4, 1);
+        v.push((name, m));
+    }
+
+    // the missing key of a parent without identifier: into a child with a
+    // key, into one without, reflexive, through a relative identification,
+    // optional, and from a parent that has foreign keys itself
+    for (name, variant) in [
+        ("c78_missing_key_keyed_child", 0),
+        ("c79_missing_key_keyless_child", 1),
+        ("c80_missing_key_reflexive", 2),
+        ("c81_missing_key_relative", 3),
+        ("c82_missing_key_optional", 4),
+        ("c83_missing_key_parent_with_fk", 5),
+        ("c84_missing_key_parent_1n", 6),
+        ("c85_missing_key_parent_01", 7),
+        ("c86_missing_key_reflexive_11_01", 8),
+        ("c87_missing_key_pivot", 9),
+        ("c88_missing_key_relative_parent", 10),
+        ("c89_missing_key_keyed_subtype", 11),
+        ("c90_missing_key_keyless_subtype", 12),
+        ("c91_missing_key_with_fk", 13),
+        ("c92_missing_key_with_relative", 14),
+        ("c93_missing_key_keyless_with_fk", 15),
+    ] {
+        let mut m = Model::new();
+        let parent = m.subtype("Parent", &["p"]);
+        match variant {
+            0 => {
+                let c = m.entity("Enfant");
+                m.assoc("Lier", &[(c, C11), (parent, C0N)]);
+            }
+            1 => {
+                let c = m.subtype("Enfant", &["e"]);
+                m.assoc("Lier", &[(c, C11), (parent, C0N)]);
+            }
+            2 => {
+                m.assoc("Lier", &[(parent, C11), (parent, C0N)]);
+            }
+            3 => {
+                let c = m.entity("Enfant");
+                let (_, arcs) = m.assoc_arcs("Lier", &[(c, C11), (parent, C0N)]);
+                m.relative(arcs[0]);
+            }
+            4 => {
+                let c = m.entity("Enfant");
+                m.assoc("Lier", &[(c, C01), (parent, C0N)]);
+            }
+            6 => {
+                let c = m.entity("Enfant");
+                m.assoc("Lier", &[(c, C11), (parent, C1N)]);
+            }
+            7 => {
+                let c = m.entity("Enfant");
+                m.assoc("Lier", &[(c, C11), (parent, C01)]);
+            }
+            8 => {
+                m.assoc("Lier", &[(parent, C11), (parent, C01)]);
+            }
+            9 => {
+                let c = m.entity("Enfant");
+                let d = m.entity("Autre");
+                let r1 = m.assoc("Lier", &[(c, C11), (parent, C0N)]);
+                let r2 = m.assoc("Voir", &[(d, C0N), (parent, C0N)]);
+                let at = m.at();
+                let k = add_contrainte(&mut m.doc, "X", at, 0);
+                add_contrainte_link(&mut m.doc, r1, k);
+                add_contrainte_link(&mut m.doc, r2, k);
+                add_contrainte_link(&mut m.doc, parent, k);
+            }
+            10 => {
+                let q = m.entity("Faible");
+                let (_, arcs) = m.assoc_arcs("Dependre", &[(q, C11), (parent, C0N)]);
+                m.relative(arcs[0]);
+                let c = m.entity("Enfant");
+                m.assoc("Lier", &[(c, C11), (parent, C0N)]);
+            }
+            13..=15 => {
+                let k = m.entity("Cle");
+                let c = if variant == 15 { m.subtype("Enfant", &["e"]) } else { m.entity("Enfant") };
+                m.assoc("Lier", &[(c, C11), (parent, C0N)]);
+                let (_, arcs) = m.assoc_arcs("Avoir", &[(c, C11), (k, C0N)]);
+                if variant == 14 {
+                    m.relative(arcs[0]);
+                }
+            }
+            11 | 12 => {
+                let s = m.entity("Super");
+                let c = if variant == 11 { m.entity("Enfant") } else { m.subtype("Enfant", &["e"]) };
+                m.assoc("Lier", &[(c, C11), (parent, C0N)]);
+                m.heritage(s, &[c], 0, false);
+            }
+            _ => {
+                let d = m.entity("Autre");
+                m.assoc("Avoir", &[(parent, C11), (d, C0N)]);
+                let c = m.subtype("Enfant", &["e"]);
+                m.assoc("Lier", &[(c, C11), (parent, C0N)]);
+            }
+        }
+        v.push((name, m));
+    }
+
     v
 }
 

@@ -93,6 +93,10 @@ impl Cardinality {
 pub struct Leg {
     /// First arc segment of the chain.
     pub arc: ObjId,
+    /// Creation order of the link (the id of its first segment, which
+    /// moving it to the front or back leaves alone): Looping migrates keys
+    /// in that order (cases c71 to c73, r052).
+    pub position: usize,
     pub entity: ObjId,
     pub cardinality: Cardinality,
     pub role: String,
@@ -169,9 +173,14 @@ pub struct SqlScript {
 pub struct Constraint {
     pub id: ObjId,
     pub name: String,
-    /// Linked associations and entities (`CDrawArcContrainte`).
-    pub associations: usize,
-    pub entities: usize,
+    /// `CUnParametre+0x110` of the symbol: 0 exclusion, 1 totality,
+    /// 2 partition, 3 simultaneity, 4 inclusion.
+    pub kind: i32,
+    /// Linked associations (`CDrawArcContrainte`), with « Lien vers
+    /// l'association ciblée » (role 4 parameter, `+0x114`), in link order.
+    pub associations: Vec<(ObjId, bool)>,
+    /// Linked entities: the pivots.
+    pub pivots: Vec<ObjId>,
 }
 
 /// Functional integrity constraint (`CDrawCif` and its `CDrawArcCif` links).
@@ -191,8 +200,12 @@ pub struct Cif {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Inheritance {
     pub id: ObjId,
-    /// Entity whose link has "Surtype de l'héritage" (`CUnParametre+0x114`).
-    pub supertype: Option<ObjId>,
+    /// Name of the symbol (empty unless typed in its dialog), shown in its
+    /// diagnostics.
+    pub name: String,
+    /// Entities whose link has "Surtype de l'héritage" (`CUnParametre+0x114`),
+    /// normally one; each gives its key to the subtypes.
+    pub supertypes: Vec<ObjId>,
     /// The other linked entities, in link order.
     pub subtypes: Vec<ObjId>,
     /// `CUnParametre+0x110` of the symbol: 0 none, 1 exclusion, 2 totality,
@@ -310,6 +323,7 @@ impl Mcd {
                 };
                 asso.legs.push(Leg {
                     arc: o.id(),
+                    position: o.id().max(0) as usize,
                     entity: ent,
                     cardinality,
                     role,
@@ -345,8 +359,9 @@ impl Mcd {
                 self.constraints.push(Constraint {
                     id: o.id(),
                     name: object_name(doc, o),
-                    associations: 0,
-                    entities: 0,
+                    kind: t.params.first().map_or(0, |p| p.f110),
+                    associations: Vec::new(),
+                    pivots: Vec::new(),
                 });
             }
             let comment = if with_comment { t.params.iter().map(|p| p.name.clone()).collect() } else { Vec::new() };
@@ -366,11 +381,16 @@ impl Mcd {
                 continue;
             }
             let ends = [o.base.links.owner, chain_end(doc, o)];
-            let is_assoc = ends.iter().any(|&e| self.association(e).is_some());
-            let is_entity = ends.iter().any(|&e| self.entity(e).is_some());
+            let assoc = ends.iter().copied().find(|&e| self.association(e).is_some());
+            let entity = ends.iter().copied().find(|&e| self.entity(e).is_some());
+            let target = doc
+                .object(o.base.links.texts[1])
+                .and_then(DrawObj::as_texte)
+                .and_then(|t| t.params.iter().find(|p| p.role == 4))
+                .is_some_and(|p| p.f114 != 0);
             if let Some(c) = self.constraints.iter_mut().find(|c| ends.contains(&c.id)) {
-                c.associations += is_assoc as usize;
-                c.entities += is_entity as usize;
+                c.associations.extend(assoc.map(|a| (a, target)));
+                c.pivots.extend(entity);
             }
         }
     }
@@ -425,7 +445,8 @@ impl Mcd {
                 .map_or(0, |p| p.f110);
             self.inheritances.push(Inheritance {
                 id: o.id(),
-                supertype: None,
+                name: object_name(doc, o),
+                supertypes: Vec::new(),
                 subtypes: Vec::new(),
                 constraint,
                 migrate_all: h.f418 != 0,
@@ -444,7 +465,7 @@ impl Mcd {
                 .is_some_and(|p| p.f114 != 0);
             if let Some(h) = self.inheritances.iter_mut().find(|h| h.id == sym) {
                 if supertype {
-                    h.supertype = Some(ent);
+                    h.supertypes.push(ent);
                 } else {
                     h.subtypes.push(ent);
                 }

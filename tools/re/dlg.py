@@ -31,4 +31,6 @@ for e in pe.DIRECTORY_ENTRY_RESOURCE.entries:
             for l in d.directory.entries:
                 r=l.data.struct
                 b=pe.get_data(r.OffsetToData,r.Size)
-                print('DIALOG',d.id); dlg(b)
+                print('DIALOG',d.id)
+                try: dlg(b)
+                except AssertionError: print(' (DLGTEMPLATE non étendu, ignoré)')

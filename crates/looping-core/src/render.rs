@@ -951,6 +951,10 @@ fn link(doc: &Document, first: &DrawObj, s: &mut Scene) {
         }
         chain.push(n);
     }
+    // a link has at least two segments (one per end)
+    if chain.len() < 2 {
+        return;
+    }
     let a_id = first.base.links.owner;
     let b_id = chain.last().unwrap().base.links.owner;
     let (Some(a), Some(b)) = (doc.object(a_id), doc.object(b_id)) else {

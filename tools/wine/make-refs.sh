@@ -56,7 +56,7 @@ masks() {
     target/debug/looping-cli resave "$1" "$tmp/$stem.fk-2.loo" $3 --set-str '0x7cc=[FK]_[Clas' --set-str '0xa52=se]'
 }
 
-for f in samples/*.loo samples/*.Loo samples/cases/*.loo; do
+for f in samples/*.loo samples/*.Loo samples/cases/c*.loo; do
     [ -e "$f" ] && masks "$f"
 done
 [ -e samples/beeven.loo ] && masks samples/beeven.loo .set-a78-1 "--set 0xa78=1"
@@ -75,6 +75,9 @@ for f in samples/cases/*.loo; do
         */c27_*) variants "$f" "mysql postgresql" "7f0-0" ;;
         */c31_*) variants "$f" "mysql postgresql" "" "7f8-1 7f8-2 b40-1" ;;
         */c19_* | */c20_*) variants "$f" "mysql postgresql oracle sqlserver" "7f8-1" "7f8-1 7f8-2 7f8-3 888-1" ;;
+        */c51_*) variants "$f" "$all_dbms" "" ;;
+        # random documents (examples/random_cases.rs): as stored only
+        */[rx][0-9]*) ;;
         *) variants "$f" "mysql postgresql" "" ;;
     esac
 done

@@ -40,13 +40,34 @@ Chemin critique :
 9. ✅ Affichage utile à la conception : rubriques, types, zoom, ajuster,
    magnétisme ; notation MCD (flèches DF, association simplifiée)
 10. 🔜 Campagne de vérification : chaque opération du chemin, à la main et
-    par cas synthétiques rouverts par Looping ; aucune panique
+    par cas synthétiques rouverts par Looping ; aucune panique.
+    Fait : partie automatique —
+    - `tests/campaign.rs` : suites aléatoires d'opérations du chemin
+      critique, toutes les sorties et l'aller-retour `.loo` après chacune ;
+      aucune panique sur 3 000 graines (180 000 opérations) ;
+    - `examples/random_cases.rs` : modèles aléatoires « réalistes » rouverts
+      par Looping sous Wine, MLD et SQL comparés (150 modèles), plus les cas
+      c51 à c95 qui fixent chaque règle trouvée ; `examples/shrink.rs` réduit
+      un écart à ses objets nécessaires.
+    Reste : la vérification à la main dans l'application sur macOS.
+    Écarts connus, hors v0.1.0 (modèles invalides, Looping refuse le script) :
+    - références circulaires : ordre des rangs, clé d'un parent lue avant
+      son héritage (`KNOWN` de `tests/reference.rs`) ;
+    - deux CIF contradictoires sur une même association ;
+    - modèles absurdes du mode « chaos » (`--chaos`) : associations à 3 ou 4
+      pattes répétant une entité avec plusieurs x,1, identification relative
+      au travers d'une réflexive, cycles d'héritage.
 11. 🔜 Release : CI GitHub Actions (tests sur Linux et macOS ARM) qui
     construit `Rollercoaster.app` et le met dans un `.dmg` pour macOS ARM,
     attaché à la release `v0.1.0` ; README d'utilisation, notes de version.
     Sans compte Apple Developer, l'application n'est ni signée ni
     notarisée : au premier lancement, macOS demande une ouverture manuelle
-    (clic droit › Ouvrir), à expliquer dans le README
+    (Réglages Système › Confidentialité et sécurité › « Ouvrir quand
+    même » depuis macOS 15), expliquée dans le README.
+    Fait : `.github/workflows/ci.yml` (formatage, tests, application),
+    `.github/workflows/release.yml` (tag `v*` : `.dmg` attaché à la
+    release, notes `docs/RELEASE-NOTES.md`), `tools/macos/bundle.sh`
+    (vérifié en local). Reste : premier passage de la CI sur GitHub, tag.
 
 Reporté après v0.1.0 (déjà fait ou non, sans garantie pour cette version) :
 

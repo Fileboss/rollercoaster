@@ -1,0 +1,31 @@
+name: Release
+
+# A tag v* builds Rollercoaster.app for macOS ARM, packs it in a .dmg and
+# attaches it to the GitHub release of that tag (created if needed).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  macos:
+    name: macOS ARM (.dmg)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Tests
+        run: cargo test --workspace
+      - name: Rollercoaster.app and .dmg
+        id: bundle
+        run: echo "dmg=$(tools/macos/bundle.sh | tail -1)" >> "$GITHUB_OUTPUT"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.bundle.outputs.dmg }}
+          body_path: docs/RELEASE-NOTES.md

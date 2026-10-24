@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Linux x64 and macOS ARM, the two targets of Rollercoaster
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Formatting
+        if: runner.os == 'Linux'
+        run: cargo fmt --all -- --check
+      # samples/ (Looping's outputs, students' models) is not published:
+      # the tests comparing with Looping are skipped, the others run,
+      # including the no-panic campaign (tests/campaign.rs)
+      - name: Tests
+        run: cargo test --workspace
+      - name: Application
+        run: cargo build --release -p rollercoaster

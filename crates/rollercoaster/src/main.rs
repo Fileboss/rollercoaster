@@ -1217,7 +1217,7 @@ impl App {
         if let Some((e, h)) = pair(K::Ent, K::Her) {
             // the first entity linked to the symbol is the supertype
             let first = !self.doc.objects.iter().any(|o| o.class == "CDrawArcHeritage" && o.base.links.owner == h);
-            let first = first && !self.mcd.inheritances.iter().any(|i| i.id == h && i.supertype.is_some());
+            let first = first && !self.mcd.inheritances.iter().any(|i| i.id == h && !i.supertypes.is_empty());
             return Ok(Box::new(move |d| edit::add_heritage_link(d, e, h, first)));
         }
         for x in [K::Ent, K::Asso] {
