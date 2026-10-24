@@ -1,0 +1,8 @@
+target/
+# proprietary binary and third-party documents: never publish
+/Looping.exe
+/*.zip
+/samples/
+__pycache__/
+# reverse-engineering cache: Ghidra project and dump, disassembly (rebuilt from Looping.exe)
+/re-cache/

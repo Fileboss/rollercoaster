@@ -1,0 +1,17 @@
+[package]
+name = "looping-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "looping-cli"
+path = "src/main.rs"
+
+[dependencies]
+loo-format.workspace = true
+looping-core = { workspace = true, features = ["png"] }
+serde_json.workspace = true
+
+[dev-dependencies]
+resvg = "0.45"
