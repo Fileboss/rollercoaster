@@ -1,6 +1,10 @@
 Première version de **Rollercoaster**, réécriture en Rust de Looping 4.1 pour
-macOS (Apple Silicon) : concevoir un schéma de base de données par un MCD,
-de bout en bout.
+macOS (Apple Silicon) et Linux x64 : concevoir un schéma de base de données
+par un MCD, de bout en bout.
+
+Fichiers : `Rollercoaster-0.1.0-macos-arm64.dmg` (l'application) et
+`Rollercoaster-0.1.0-linux-x86_64.tar.gz` (l'éditeur `rollercoaster` et
+l'outil en ligne de commande `looping-cli`).
 
 - Ouvre et enregistre les fichiers `.loo` de Looping (formats 1 à 51) ;
   Looping rouvre les fichiers enregistrés.
@@ -17,7 +21,7 @@ cas synthétiques, modèles aléatoires) et une campagne de dizaines de
 milliers d'opérations d'édition sans panique.
 
 Reporté : vues graphiques MLD et UML, impression, urbanisation,
-rétroconception SQL, paquet Linux (voir `docs/ROADMAP.md`).
+rétroconception SQL, paquet Linux AppImage / Flatpak (voir `docs/ROADMAP.md`).
 
 **Installation** : l'application n'est pas notarisée ; au premier lancement,
 l'autoriser dans Réglages Système › Confidentialité et sécurité ›

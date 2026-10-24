@@ -64,10 +64,13 @@ Chemin critique :
     notarisée : au premier lancement, macOS demande une ouverture manuelle
     (Réglages Système › Confidentialité et sécurité › « Ouvrir quand
     même » depuis macOS 15), expliquée dans le README.
-    Fait : `.github/workflows/ci.yml` (formatage, tests, application),
-    `.github/workflows/release.yml` (tag `v*` : `.dmg` attaché à la
-    release, notes `docs/RELEASE-NOTES.md`), `tools/macos/bundle.sh`
-    (vérifié en local). Reste : premier passage de la CI sur GitHub, tag.
+    Fait : `.github/workflows/ci.yml` (formatage, tests, livrables de
+    chaque push), `.github/workflows/release.yml` (au merge sur `main`
+    d'une version de `Cargo.toml` sans tag : tag `v<version>` et release
+    avec le `.dmg` macOS ARM et le `.tar.gz` Linux x64, notes
+    `docs/RELEASE-NOTES.md`), `tools/macos/bundle.sh`,
+    `tools/linux/package.sh` (archive des binaires construite sur Ubuntu
+    22.04). Reste : premier passage de la CI sur GitHub, merge sur `main`.
 
 Reporté après v0.1.0 (déjà fait ou non, sans garantie pour cette version) :
 
@@ -86,10 +89,9 @@ Reporté après v0.1.0 (déjà fait ou non, sans garantie pour cette version) :
   masquer les panneaux — étapes 5 et 6
 - Illustrations (faites à l'étape 3, hors garantie) et outil « Prof »
 - Fidélité au pixel de l'affichage (jalon 4) au-delà du point 5 ci-dessus
-- Paquet Linux (décidé : pas dans v0.1.0). Piste la plus simple pour
-  tourner sur plusieurs distributions : une AppImage construite sur une
-  Ubuntu ancienne (glibc ancienne), ou à défaut une archive `.tar.gz` du
-  binaire ; Flatpak plus tard — jalon 6
+- Paquet Linux : v0.1.0 livre une archive `.tar.gz` des binaires
+  construite sur Ubuntu 22.04 (glibc ancienne) ; une AppImage, puis
+  Flatpak, plus tard — jalon 6
 - Signature et notarisation macOS, association du type `.loo`, icône
   soignée — jalon 6
 
