@@ -26,7 +26,20 @@ fn main() -> eframe::Result {
     }
     let path = std::env::args().nth(1).map(PathBuf::from);
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1400.0, 900.0]).with_title("Rollercoaster"),
+        // our icon, else eframe puts its own in the Dock and the window
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1400.0, 900.0])
+            .with_title("Rollercoaster")
+            .with_icon(std::sync::Arc::new(
+                eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png")).expect("icon.png"),
+            )),
+        // winit's default macOS menu quits on Cmd+Q without a close
+        // request, so without the save prompt: Cmd+Q is handled as a key
+        #[cfg(target_os = "macos")]
+        event_loop_builder: Some(Box::new(|builder| {
+            use winit::platform::macos::EventLoopBuilderExtMacOS;
+            builder.with_default_menu(false);
+        })),
         ..Default::default()
     };
     eframe::run_native(
@@ -1000,15 +1013,20 @@ impl App {
             ui.selectable_value(&mut self.tab, Tab::Mld, "MLD textuel");
             ui.selectable_value(&mut self.tab, Tab::Sql, format!("Script SQL ({})", self.dbms.name()));
         });
-        let mut text = match self.tab {
+        let text = match self.tab {
             Tab::Mld => self.mld.to_text(&self.sql_options()),
             Tab::Sql => sql::generate_with(&self.mld, &self.sql_options()),
         };
         if ui.button("Copier").clicked() {
             ui.ctx().copy_text(text.clone());
         }
+        // generated text: selectable for copying, not editable
         egui::ScrollArea::vertical().show(ui, |ui| {
-            ui.add(egui::TextEdit::multiline(&mut text).code_editor().desired_width(f32::INFINITY));
+            ui.add(
+                egui::Label::new(egui::RichText::new(text).monospace())
+                    .selectable(true)
+                    .wrap_mode(egui::TextWrapMode::Extend),
+            );
         });
     }
 
@@ -1425,7 +1443,7 @@ impl eframe::App for App {
         }
         // shortcuts
         let typing = ctx.egui_wants_keyboard_input();
-        let (undo, redo, del, save, new, open) = ctx.input(|i| {
+        let (undo, redo, del, save, new, open, quit) = ctx.input(|i| {
             (
                 i.modifiers.command && !i.modifiers.shift && i.key_pressed(egui::Key::Z),
                 i.modifiers.command && i.modifiers.shift && i.key_pressed(egui::Key::Z),
@@ -1433,8 +1451,13 @@ impl eframe::App for App {
                 i.modifiers.command && i.key_pressed(egui::Key::S),
                 i.modifiers.command && i.key_pressed(egui::Key::N),
                 i.modifiers.command && i.key_pressed(egui::Key::O),
+                i.modifiers.command && i.key_pressed(egui::Key::Q),
             )
         });
+        // Cmd+Q / Ctrl+Q: as closing the window, so with the save prompt
+        if quit {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
         if new {
             self.new_document();
         }

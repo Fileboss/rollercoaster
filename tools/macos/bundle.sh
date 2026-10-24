@@ -13,8 +13,9 @@ cargo build --release -p rollercoaster
 out=target/release
 app=$out/Rollercoaster.app
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$out/rollercoaster" "$app/Contents/MacOS/rollercoaster"
+cp crates/rollercoaster/assets/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
 cat > "$app/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -28,6 +29,8 @@ cat > "$app/Contents/Info.plist" <<EOF
 	<string>io.github.fileboss.rollercoaster</string>
 	<key>CFBundleExecutable</key>
 	<string>rollercoaster</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
