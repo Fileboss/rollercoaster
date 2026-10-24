@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Rollercoaster's icon: a coaster car on the way down a loop. The
+       512-unit artwork sits on the macOS icon grid (824 px in 1024).
+       Rendered to assets/AppIcon.icns by tools/macos/icon.sh. -->
+  <g transform="translate(100 100) scale(1.609375)">
+    <rect x="0" y="0" width="512" height="512" rx="112" fill="#1B2A4A"/>
+    <line x1="70" y1="430" x2="70" y2="486" stroke="#38C6E8" stroke-width="9" stroke-linecap="round" opacity="0.5"/>
+    <line x1="442" y1="430" x2="442" y2="486" stroke="#38C6E8" stroke-width="9" stroke-linecap="round" opacity="0.5"/>
+    <line x1="256" y1="430" x2="256" y2="486" stroke="#38C6E8" stroke-width="9" stroke-linecap="round" opacity="0.5"/>
+    <path d="M28 420 L170 420 C298 420 406 360 406 236 A150 150 0 1 0 106 236 C106 360 214 420 342 420 L484 420" fill="none" stroke="#38C6E8" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M28 420 L170 420 C298 420 406 360 406 236 A150 150 0 1 0 106 236 C106 360 214 420 342 420 L484 420" fill="none" stroke="#1B2A4A" stroke-width="5" stroke-dasharray="3 16" stroke-linecap="round"/>
+    <g transform="translate(159.6 121.1) rotate(140)">
+      <rect x="-46" y="-130" width="36" height="40" rx="12" fill="#FFC83D"/>
+      <rect x="10" y="-130" width="36" height="40" rx="12" fill="#FFC83D"/>
+      <rect x="-80" y="-98" width="160" height="72" rx="18" fill="#FFC83D"/>
+      <rect x="-80" y="-98" width="160" height="18" rx="9" fill="#E0A21A"/>
+      <rect x="-56" y="-62" width="112" height="10" rx="5" fill="#E0A21A"/>
+      <circle cx="-46" cy="-14" r="16" fill="#1B2A4A" stroke="#FFC83D" stroke-width="6"/>
+      <circle cx="46" cy="-14" r="16" fill="#1B2A4A" stroke="#FFC83D" stroke-width="6"/>
+    </g>
+  </g>
+</svg>

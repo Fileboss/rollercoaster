@@ -8,3 +8,5 @@ __pycache__/
 /re-cache/
 # local setup notes (USB transfer), not versioned
 /MAC-SETUP.md
+# macOS Finder
+.DS_Store
